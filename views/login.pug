@@ -1,0 +1,13 @@
+extends layout
+
+block content
+	div.col-xs-12.col-md-6
+		h4 Sign in to #{appTitle}
+		form(enctype="multipart/form-data", method="POST", action="/login")
+			div.form-group
+				label(for='user') Username:
+				input.form-control(id="username", type="text", name="username")
+			div.form-group
+				label(for='pass') Password:
+				input.form-control(type="password", name="password", id="Password")
+			button.btn.btn-primary(type="submit") Log in
