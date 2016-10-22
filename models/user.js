@@ -2,18 +2,23 @@ var mongoose = require('mongoose'),
     Schema = mongoose.Schema,
     passportLocalMongoose = require('passport-local-mongoose');
 
-var User = new Schema({}
-    /*username: {
-		type: String,
-		unique: true,
-		required: true,
-		trim: true
+var User = new Schema({
+	username: String,
+	password: String,
+	twitter: {
+		oauthID: Number,
+		name: String,
+		created: Date
 	},
-    password: {
-		type: String,
-		required: true
-	}
-}*/, { collection: 'fcc_barhoppers' });
+	searches: [{
+		term: String,
+		location: String
+	}],
+	rsvp: [{
+		id: String,
+		location: String
+	}]
+}, { collection: 'fcc_barhoppers' });
 
 User.plugin(passportLocalMongoose);
 

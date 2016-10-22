@@ -1,24 +1,71 @@
+var fs = require('fs');
 var express = require('express');
 var path = require('path');
 var _ = require('underscore');
-//var mongodb = require("mongodb");
 var mongoose = require('mongoose');
 var session = require('express-session');
-//var MongoStore = require('connect-mongo')(session); //let connect-mongo access session
 //var favicon = require('serve-favicon');
 var logger = require('morgan');
 var cookieParser = require('cookie-parser');
 var bodyParser = require('body-parser');
 var dotenv = require('dotenv');
 var passport = require('passport');
-//var Auth0Strategy = require('passport-auth0');
 var LocalStrategy = require('passport-local').Strategy;
+var TwitterStrategy = require('passport-twitter').Strategy;
 var http = require('http');
 
 dotenv.load();
 
 var routes = require('./routes/index');
-var user = require('./routes/user');
+
+var User = require('./models/user');
+
+passport.use(new LocalStrategy(User.authenticate()));
+passport.use(new TwitterStrategy({
+	consumerKey: process.env.TWITTER_CONSUMER_KEY,
+	consumerSecret: process.env.TWITTER_CONSUMER_SECRET,
+	callbackURL: process.env.TWITTER_CALLBACK_URL
+	},
+	function(accessToken, refreshToken, profile, done) {
+		User.findOne({ 'twitter.oauthID': profile.id }, function(err, user) {
+			if(err) {
+				console.log(err);  // handle errors!
+			}
+			if (!err && user !== null) {
+				done(null, user);
+			} else {
+	       		user = new User({
+					username: profile.displayName,
+					twitter: {
+						oauthID: profile.id,
+						name: profile.displayName,
+						created: Date.now()
+					}
+		        });
+				user.save(function(err) {
+					if(err) {
+						console.log(err);  // handle errors!
+					} else {
+						console.log("saving user ...");
+						done(null, user);
+					}
+		        });
+			}
+	    });
+	}
+));
+// serialize and deserialize
+passport.serializeUser(function(user, done) {
+  //console.log('serializeUser: ' + user._id);
+  done(null, user._id);
+});
+passport.deserializeUser(function(id, done) {
+  User.findById(id, function(err, user){
+    //console.log(user);
+      if(!err) done(null, user);
+      else done(err, null);
+    });
+});
 
 var app = express();
 
@@ -55,14 +102,13 @@ app.use(passport.session());
 
 // make user ID available in templates
 /*app.use(function (req, res, next) {
-  	res.locals.currentUser = req.session.userId;
+  	res.locals.currentUser = req.session.user;
 	next();
 });*/
 
 app.use(express.static(__dirname + '/public'));
 
 app.use('/', routes);
-app.use('/users', user);
 
 if (app.get('env') === 'production') {
 	app.set('trust proxy', 1) // trust first proxy
@@ -98,10 +144,6 @@ app.use(function(err, req, res, next) {
 	});
 });
 
-var User = require('./models/user');
-passport.use(new LocalStrategy(User.authenticate()));
-passport.serializeUser(User.serializeUser());
-passport.deserializeUser(User.deserializeUser());
 
 var uri = process.env.DEVDB;// || process.env.MONGOLAB_URI;
 
@@ -115,4 +157,6 @@ http.createServer(app).listen(port, function (err) {
 	console.log('listening in http://localhost:' + port);
 });
 
-module.exports = app;
+
+
+//module.exports = app;

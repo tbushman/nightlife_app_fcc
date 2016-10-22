@@ -1,9 +1,37 @@
 extends layout
-
+block page
+	- var menu = 'user'
 block content 
-	img(src="#{user.picture}")
-	h2 Welcome #{user.nickname}!
-	br
-	a(href='/logout') Logout
-	h2 User Profile
-	pre #{userProfile}
+	div.col-xs-12.col-md-6
+		if (data.length === 0)
+			h3 Search for a night club in your City
+		else
+			div.container-fluid
+				each val, index in data
+					div.row
+						div.col-xs-3
+							img(src=""+val.image_url+"")
+						div.col-xs-6
+							div.row
+								div.col-xs-12
+									h4 #{val.name}
+								div.col-xs-12
+									h6 #{val.snippet_text}
+						div.col-xs-3
+							div.panel.panel-default
+								div.panel-heading(id="toggle")
+									a.panel-title #{val.rsvp.length} Going
+								div.panel-body(id="friendDiv", class="friendDiv")
+									div#friends.col-xs-12
+										ul
+											each item, index in val.rsvp
+												li #{item.username}
+							
+	script(type="text/javascript").
+		$(document).ready(function(){
+			$('.friendDiv').addClass('hider');
+			$(document).on('click', '#toggle', function(event){
+				event.preventDefault();
+				$(this).next('#friendDiv').toggleClass('hider');
+			});
+		});

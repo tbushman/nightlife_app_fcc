@@ -1,14 +1,31 @@
 extends layout
-
+block page
+	- var menu = 'index'
 block content
-	h1= appTitle
-	p Welcome to #{appTitle}
-	br
-	if (!user)
-		a(href="/login") Login
-			br
-			a(href="/register") Register
-	if (user)
-		p You are currently logged in as #{user.username}
-		a(href="/logout") Logout
-  
+	- var dataString = JSON.stringify(data)
+	input(type='hidden', class='data-json', value= dataString)
+	if (data.length === 0)
+		h3 Search for a night club in your City
+	else
+		each val, index in data
+			div.row
+				div.col-xs-3
+					img(src=""+val.image_url+"")
+				div.col-xs-6
+					div.row
+						div.col-xs-12
+							h4 #{val.name}
+						div.col-xs-12
+							h6 #{val.snippet_text}
+				div.col-xs-3
+					if (!user)
+						a.btn.btn-default(href="/register/"+val.term+"/"+val.city+"", role="button") #{val.rsvp} Going
+					else
+						a.btn.btn-default(type="button", class="rsvp", id=""+val.id+"") #{val.rsvp} Going
+	script(type="text/javascript").
+		$(document).on('click', '.rsvp', function(){
+			var rsvp = $(this).attr('id');
+			$.post('/api/rsvp/'+rsvp+'').then(function(response){
+				$('#'+rsvp+'.rsvp').html(''+response+' Going')
+			})
+		});								

@@ -6,3 +6,11 @@ body {
 a {
   color: #00B7FF;
 }
+
+.hider {
+	display: none;
+}
+
+#wrapper {
+	margin-top: 100px;
+}
