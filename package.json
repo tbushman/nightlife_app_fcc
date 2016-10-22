@@ -16,7 +16,6 @@
   "dependencies": {
     "async": "^2.1.2",
     "body-parser": "~1.15.0",
-    "connect-ensure-login": "^0.1.1",
     "connect-mongo": "^1.2.1",
     "cookie-parser": "~1.4.1",
     "cors": "^2.7.1",
@@ -35,7 +34,6 @@
     "passport-local-mongoose": "^4.0.0",
     "passport-twitter": "^1.0.3",
     "pug": "^2.0.0-beta6",
-    "serve-favicon": "~2.3.0",
     "underscore": "^1.8.3",
     "url": "^0.11.0",
     "yelp": "^1.0.1"

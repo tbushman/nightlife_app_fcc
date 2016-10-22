@@ -4,7 +4,6 @@ var path = require('path');
 var _ = require('underscore');
 var mongoose = require('mongoose');
 var session = require('express-session');
-//var favicon = require('serve-favicon');
 var logger = require('morgan');
 var cookieParser = require('cookie-parser');
 var bodyParser = require('body-parser');
@@ -84,11 +83,7 @@ var sess = {
   	secret: 'keyboard cat',
 	resave: false,
 	saveUninitialized: false,
-	cookie: {}/*,
-	store: new MongoStore({
-		mongooseConnection: db
-	})*/
-  
+	cookie: {}
 }
 app.use(cookieParser(sess.secret));
 if (app.get('env') === 'production') {
@@ -100,12 +95,6 @@ app.use(session(sess))
 app.use(passport.initialize());
 app.use(passport.session());
 
-// make user ID available in templates
-/*app.use(function (req, res, next) {
-  	res.locals.currentUser = req.session.user;
-	next();
-});*/
-
 app.use(express.static(__dirname + '/public'));
 
 app.use('/', routes);
@@ -114,7 +103,6 @@ if (app.get('env') === 'production') {
 	app.set('trust proxy', 1) // trust first proxy
 	sess.cookie.secure = true // serve secure cookies
 }
-
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {
 	var err = new Error('File Not Found');
@@ -145,9 +133,9 @@ app.use(function(err, req, res, next) {
 });
 
 
-var uri = process.env.DEVDB;// || process.env.MONGOLAB_URI;
+var uri = process.env.MONGOLAB_URI; //process.env.DEVDB || process.env.MONGOLAB_URI;
 
-mongoose.connect(uri/*, {authMechanism: 'ScramSHA1'}*/);
+mongoose.connect(uri, {authMechanism: 'ScramSHA1'});
 var db = mongoose.connection;
 db.on('error', console.error.bind(console, 'connection error:'));
 
@@ -157,6 +145,3 @@ http.createServer(app).listen(port, function (err) {
 	console.log('listening in http://localhost:' + port);
 });
 
-
-
-//module.exports = app;

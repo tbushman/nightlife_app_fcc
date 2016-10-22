@@ -69,7 +69,7 @@ router.get('/register*', function(req, res, next) {
 	var yelp_term = search.split('/')[0];
 	req.app.locals.yelp_city = yelp_city.replace('%20', '');
 	req.app.locals.yelp_term = yelp_term.replace('%20', '');
-	//console.log(res.locals)
+	//console.log(req.app.locals)
     return res.render('register', { });
 });
 
@@ -126,59 +126,19 @@ router.get('/user', ensureAuthenticated, function(req, res, next){
 		if(err) {
 			return next(err);  // handle errors
 	    } else {
-			var businesses = user.rsvp;
+			var results = user.rsvp;
 			
-			if (businesses.length > 0) {
-				var pugData = [];
-				for (var i = 0; i < businesses.length; i++) {
-					
-					var yelp_id = businesses[i].id;
-					//console.log(yelp_id)
-					
-					yelp.business(businesses[i].id).then(function(data){
-						var result = data;
-						var rsvp = [];
-						User.find({rsvp: {$elemMatch: {id: result.id } }}, function(error, users){
-
-							if (error) {
-								return next(error);
-							}
-							for (var i in users) {
-								User.findOne({_id: users[i]._id}, function(er, user){
-									if (er) {
-										return next(er)
-									} else {
-										var rsvp_profile = {
-											username: user.username,
-											user_id: user._id
-										}
-										rsvp.push(rsvp_profile);
-									}
-								})
-							}
-						});
-						var entry = {
-							id: result.id,
-							name: result.name,
-							image_url: result.image_url,
-							snippet_text: result.snippet_text,
-							rsvp: rsvp //array
-						}
-						pugData.push(entry)
-					}).catch(function (err) {
-						return next(err);
-					});
-					
-				}
-				setTimeout(function(){ //wait for above loops / arrays
-					return res.render('user', { 
+			if (results.length > 0) {
+				
+				async.map(results, getBusinessInfo, function(err, result){
+					//console.log(result) //array
+					return res.render('user', {
 						user: req.user,
-						data: pugData
+						data: result
 					});
-					
-				}, 2000)
+				})
+
 			} else {
-				console.log(businesses)
 				return res.render('user', { 
 					user: req.user,
 					data: []
@@ -201,83 +161,20 @@ router.get('/api/:term/:location', function(req, res, next) {
 	var location = req.params.location;
 	yelp.search({ term: term, location: location }).then(function (data) {
 		var results = data.businesses;
-		var pugData = [];
-		//console.log(data)
 		
 		async.map(results, getBusinessInfo, function(err, result){
-			console.log(result) //array
+			//console.log(result) //array
 			return res.render('index', {
 				user: req.user,
+				term: term,
+				location: location,
 				data: result
 			});
 		})
-		/*async.forEach(results, function(result, callback){
-			var yelp_id = result.id;
-			var entry = {}
-			loadAllRsvps(yelp_id, function(err, rsvps) {
-				if (err) {
-					callback(err);
-				}
-				//entry.rsvp = rsvps; //array
-				callback(null, rsvps);
-			})
-			pugData.push(entry)
-		}, function(er){
-			if (er) {
-				return next(er)
-			}
-			return res.render('index', {
-				user: req.user,
-				data: pugData
-			});
-			
-		})*/
-/*		for (var i = 0; i < results.length; i++) {
-			var rsvp = [];
-			var match_id = {
-				id: results[i].id
-			}
-			var rsvp_length;
-			User.find({rsvp: {$elemMatch: match_id }}, function(err, users){
-				if (err) {
-					return next(err);
-				}
-				rsvp_length = users.length;
-				for (var j = 0; j < users.length; j++) {
-					rsvp.push(users[j]._id);
-				}
-			});
-			//var rsvp_length = rsvp.length;
-			var entry = {
-				id: results[i].id,
-				name: results[i].name,
-				image_url: results[i].image_url,
-				snippet_text: results[i].snippet_text,
-				term: term,
-				city: location,
-				rsvp: rsvp_length
-			}
-			pugData.push(entry);
-		}*/
 	}).catch(function (err) {
 		return next(err);
 	});
 });
-
-router.post('/api/all/rsvp/:id', function(){
-	var yelp_id = req.params.id;
-	User.find({rsvp: {$elemMatch: {id: yelp_id} } }, function(err, users){
-		if (err) {
-			return next(err);
-		}
-		var length = users.length;
-		if (users.length === 0) {
-			length = 0;
-		}
-		res.contentType('application/json');
-		return res.json(length);
-	});
-})
 
 router.post('/api/rsvp/:id', function(req, res, next){
 	var yelp_id = req.params.id;
@@ -342,69 +239,54 @@ router.post('/api/rsvp/:id', function(req, res, next){
 router.post('/search', upload.array(), function(req, res, next) {
 	var term = req.body.term;
 	var location = req.body.location;
-	yelp.search({ term: term, location: location }).then(function (results) {
-		var data = results.businesses;
-		var pugData = [];
-		for (var i = 0; i < data.length; i++) {
-			//var match_id = data[i].id;
-			var yelp_id = data[i].id;
-			var yelp_name = data[i].name;
-			var yelp_img = data[i].image_url;
-			var yelp_txt = data[i].snippet_text;
-			
-			User.find({rsvp: {$elemMatch: {id: yelp_id} }}, function(err, users){
+	if (req.isAuthenticated()) {
+		var push_search = {
+			term: term,
+			location: location
+		};
+		User.findOneAndUpdate(
+			{_id: req.user._id},
+			{$push:{searches: push_search}},
+			{safe: true, upsert: false},
+			function(err, docs) {
+				//console.log(docs)
 				if (err) {
 					return next(err);
 				}
-				var rsvp_length = users.length;
-				/*if (!users) {
-					rsvp_length = 0;
-				} else {
-					rsvp_length = users.length;								
-				}*/
-				var entry = {
-					id: yelp_id,
-					name: yelp_name,
-					image_url: yelp_img,
-					snippet_text: yelp_txt,
-					term: term,
-					city: location,
-					rsvp: rsvp_length
-				}
-				pugData.push(entry);
+				yelp.search({ term: term, location: location }).then(function (data) {
+					var results = data.businesses;
+					async.map(results, getBusinessInfo, function(err, result){
+						//console.log(result) //array
+						return res.render('index', {
+							user: req.user,
+							term: term,
+							location: location,
+							data: result
+						});
+					})
+				}).catch(function (err) {
+					return next(err);
+				});
 				
-			});
-		}
-		console.log(pugData)
-		if (req.isAuthenticated()) {
-			var push_search = {
-				term: term,
-				location: location
-			};
-			User.findOneAndUpdate(
-				{_id: req.user._id},
-				{$push:{searches: push_search}},
-				{safe: true, upsert: true},
-				function(err, docs) {
-					//console.log(docs)
-					if (err) {
-						return next(err);
-					}
-					return res.render('index', {
-						user: req.user,
-						data: pugData
-					});
-				} 
-			);
-		} else {
-			return res.render('index', {
-				user: req.user,
-				data: pugData
-			});
-		}
-	}).catch(function (err) {
-		console.error(err);
-	});
+			} 
+		);
+	} else {
+		yelp.search({ term: term, location: location }).then(function (data) {
+			var results = data.businesses;
+
+			async.map(results, getBusinessInfo, function(err, result){
+				//console.log(result) //array
+				return res.render('index', {
+					user: req.user,
+					term: term,
+					location: location,
+					data: result
+				});
+			})
+		}).catch(function (err) {
+			return next(err);
+		});
+	}
 });
 
 function getBusinessInfo(business, callback) {
@@ -415,20 +297,23 @@ function getBusinessInfo(business, callback) {
 			if (err) {
 				return callback(err);
 			}
-			rsvp_length = users.length;
-			/*for (var i = 0; i < users.length; i++) {
+			//rsvp_length = users.length;
+			var rsvp = []
+			for (var i = 0; i < users.length; i++) {
 				var user_profile = {
 					username: users[i].username,
 					user_id: users[i]._id
 				}
 				rsvp.push(user_profile)
-			}*/
+			}
+			var rsvp_length = rsvp.length;
 			var entry = {
 				id: data.id,
 				name: data.name,
 				image_url: data.image_url,
 				snippet_text: data.snippet_text,
-				rsvp: users.length
+				rsvp: rsvp,
+				rsvp_length: rsvp_length
 			}
 			callback(null, entry)
 		});
@@ -436,55 +321,6 @@ function getBusinessInfo(business, callback) {
 		console.error(err);
 	});
 }
-/*
-function loadBusinessesBySearch(term, location, callback) {
-	yelp.search({ term: term, location: location }).then(function (results) {
-}
-
-function loadUserRsvps(user_id, callback) {
-	User.findOne({_id: user_id}, 'rsvp', function(err, rsvps) {
-		if (err) {
-			return callback(err);  // handle errors
-	    } else {
-			async.forEach(rsvps, function(bus, callback){
-				
-			})
-	
-}*/
-/*function loadAllRsvps(yelp_id, callback) {
-	User.find({rsvp: {$elemMatch: {id: yelp_id} } }, function(err, users){
-		if (err) {
-			return callback(err);
-		}
-		var rsvp = [];
-		async.forEach(users, function(user, callback){
-			var rsvp_data = {
-				user_id: user._id,
-				username: user.username
-			}
-			rsvp.push(rsvp_data);
-			callback();
-		}, function(err) {
-			if (err) {
-				return callback(err);
-			}
-			callback(null, rsvp);
-		})		
-	})
-}*/
-
-// See http://www.yelp.com/developers/documentation/v2/search_api
-/*yelp.search({ term: 'food', location: 'Montreal' }).then(function (data) {
-	console.log(data);
-}).catch(function (err) {
-	console.error(err);
-});
-
-// A callback based API is also available:
-yelp.business('yelp-san-francisco', function(err, data) {
-  if (err) return console.log(error);
-  console.log(data);
-});*/
 
 
 
