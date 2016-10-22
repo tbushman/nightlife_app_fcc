@@ -5,6 +5,7 @@ var User = require('../models/user');
 var multer  = require('multer');
 var url = require('url');
 var dotenv = require('dotenv');
+var async = require("async");
 var router = express.Router();
 
 var upload = multer();
@@ -202,7 +203,36 @@ router.get('/api/:term/:location', function(req, res, next) {
 		var results = data.businesses;
 		var pugData = [];
 		//console.log(data)
-		for (var i = 0; i < results.length; i++) {
+		
+		async.map(results, getBusinessInfo, function(err, result){
+			console.log(result) //array
+			return res.render('index', {
+				user: req.user,
+				data: result
+			});
+		})
+		/*async.forEach(results, function(result, callback){
+			var yelp_id = result.id;
+			var entry = {}
+			loadAllRsvps(yelp_id, function(err, rsvps) {
+				if (err) {
+					callback(err);
+				}
+				//entry.rsvp = rsvps; //array
+				callback(null, rsvps);
+			})
+			pugData.push(entry)
+		}, function(er){
+			if (er) {
+				return next(er)
+			}
+			return res.render('index', {
+				user: req.user,
+				data: pugData
+			});
+			
+		})*/
+/*		for (var i = 0; i < results.length; i++) {
 			var rsvp = [];
 			var match_id = {
 				id: results[i].id
@@ -213,9 +243,9 @@ router.get('/api/:term/:location', function(req, res, next) {
 					return next(err);
 				}
 				rsvp_length = users.length;
-				/*for (var j = 0; j < users.length; j++) {
+				for (var j = 0; j < users.length; j++) {
 					rsvp.push(users[j]._id);
-				}*/
+				}
 			});
 			//var rsvp_length = rsvp.length;
 			var entry = {
@@ -228,13 +258,7 @@ router.get('/api/:term/:location', function(req, res, next) {
 				rsvp: rsvp_length
 			}
 			pugData.push(entry);
-		}
-	//	setTimeout(function(){
-			return res.render('index', {
-				user: req.user,
-				data: pugData
-			});
-	//	}, 1000);
+		}*/
 	}).catch(function (err) {
 		return next(err);
 	});
@@ -321,6 +345,37 @@ router.post('/search', upload.array(), function(req, res, next) {
 	yelp.search({ term: term, location: location }).then(function (results) {
 		var data = results.businesses;
 		var pugData = [];
+		for (var i = 0; i < data.length; i++) {
+			//var match_id = data[i].id;
+			var yelp_id = data[i].id;
+			var yelp_name = data[i].name;
+			var yelp_img = data[i].image_url;
+			var yelp_txt = data[i].snippet_text;
+			
+			User.find({rsvp: {$elemMatch: {id: yelp_id} }}, function(err, users){
+				if (err) {
+					return next(err);
+				}
+				var rsvp_length = users.length;
+				/*if (!users) {
+					rsvp_length = 0;
+				} else {
+					rsvp_length = users.length;								
+				}*/
+				var entry = {
+					id: yelp_id,
+					name: yelp_name,
+					image_url: yelp_img,
+					snippet_text: yelp_txt,
+					term: term,
+					city: location,
+					rsvp: rsvp_length
+				}
+				pugData.push(entry);
+				
+			});
+		}
+		console.log(pugData)
 		if (req.isAuthenticated()) {
 			var push_search = {
 				term: term,
@@ -335,72 +390,88 @@ router.post('/search', upload.array(), function(req, res, next) {
 					if (err) {
 						return next(err);
 					}
-					for (var i = 0; i < data.length; i++) {
-						//var match_id = data[i].id;
-						User.find({rsvp: {$elemMatch: {id: data[i].id} }}, function(err, users){
-							var rsvp_length;
-							if (err) {
-								return next(err);
-							}
-							if (!users) {
-								rsvp_length = 0;
-							} else {
-								rsvp_length = users.length;								
-							}
-							var entry = {
-								id: data[i].id,
-								name: data[i].name,
-								image_url: data[i].image_url,
-								snippet_text: data[i].snippet_text,
-								term: term,
-								city: location,
-								rsvp: rsvp_length
-							}
-							pugData.push(entry);
-						});
-					}					
+					return res.render('index', {
+						user: req.user,
+						data: pugData
+					});
 				} 
 			);
 		} else {
-			for (var i = 0; i < data.length; i++) {
-				//var match_id = data[i].id;
-				User.find({rsvp: {$elemMatch: {id: data[i].id} }}, function(err, users){
-					var rsvp_length;
-					if (err) {
-						return next(err);
-					}
-					if (!users) {
-						rsvp_length = 0;
-					} else {
-						rsvp_length = users.length;								
-					}
-					var entry = {
-						id: data[i].id,
-						name: data[i].name,
-						image_url: data[i].image_url,
-						snippet_text: data[i].snippet_text,
-						term: term,
-						city: location,
-						rsvp: rsvp_length
-					}
-					pugData.push(entry);
-				});
-			}
-		}
-		//console.log(pugData)
-		setTimeout(function(){
 			return res.render('index', {
 				user: req.user,
 				data: pugData
 			});
-		}, 2000)
-		
-		
-		//console.log(data);
+		}
 	}).catch(function (err) {
 		console.error(err);
 	});
 });
+
+function getBusinessInfo(business, callback) {
+	yelp.business(business.id).then(function(data){
+		//var rsvp = [];
+		//var rsvp_length;
+		User.find({rsvp: {$elemMatch: {id: data.id} } }, function(err, users){
+			if (err) {
+				return callback(err);
+			}
+			rsvp_length = users.length;
+			/*for (var i = 0; i < users.length; i++) {
+				var user_profile = {
+					username: users[i].username,
+					user_id: users[i]._id
+				}
+				rsvp.push(user_profile)
+			}*/
+			var entry = {
+				id: data.id,
+				name: data.name,
+				image_url: data.image_url,
+				snippet_text: data.snippet_text,
+				rsvp: users.length
+			}
+			callback(null, entry)
+		});
+	}).catch(function (err) {
+		console.error(err);
+	});
+}
+/*
+function loadBusinessesBySearch(term, location, callback) {
+	yelp.search({ term: term, location: location }).then(function (results) {
+}
+
+function loadUserRsvps(user_id, callback) {
+	User.findOne({_id: user_id}, 'rsvp', function(err, rsvps) {
+		if (err) {
+			return callback(err);  // handle errors
+	    } else {
+			async.forEach(rsvps, function(bus, callback){
+				
+			})
+	
+}*/
+/*function loadAllRsvps(yelp_id, callback) {
+	User.find({rsvp: {$elemMatch: {id: yelp_id} } }, function(err, users){
+		if (err) {
+			return callback(err);
+		}
+		var rsvp = [];
+		async.forEach(users, function(user, callback){
+			var rsvp_data = {
+				user_id: user._id,
+				username: user.username
+			}
+			rsvp.push(rsvp_data);
+			callback();
+		}, function(err) {
+			if (err) {
+				return callback(err);
+			}
+			callback(null, rsvp);
+		})		
+	})
+}*/
 
 // See http://www.yelp.com/developers/documentation/v2/search_api
 /*yelp.search({ term: 'food', location: 'Montreal' }).then(function (data) {
