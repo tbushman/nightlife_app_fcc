@@ -98,10 +98,6 @@ app.use(express.static(__dirname + '/public'));
 
 app.use('/', routes);
 
-if (app.get('env') === 'production') {
-	app.set('trust proxy', 1) // trust first proxy
-	sess.cookie.secure = true // serve secure cookies
-}
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {
 	var err = new Error('File Not Found');
